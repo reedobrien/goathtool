@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -17,13 +18,13 @@ var (
 	otp    string // If an OTP is supplied for verification
 
 	// common flags are add in addFlags
-	base32         *bool
-	digits, window *int
+	base32, verbose *bool
+	digits, window  *int
 
 	// cFlags is only here for usage()
 	cFlag = flag.NewFlagSet("common", flag.ContinueOnError)
 
-	//// Flags
+	// Flags
 	hFlag   = flag.NewFlagSet("hotp", flag.ContinueOnError)
 	counter = hFlag.Int64("c", 0, "HOTP counter Value")
 
@@ -72,12 +73,23 @@ func addFlags(f *flag.FlagSet) {
 	base32 = f.Bool("b", false, "Use base32 encoding instead of hex")
 	digits = f.Int("d", 6, "The number of digits in the OTP")
 	window = f.Int("w", 1, "Window of counter values to test when validating OTPs")
+	verbose = f.Bool("v", false, "Explain what  is being done.")
+}
+
+func getPositionalArgs(f *flag.FlagSet) {
+	secret = strings.ToUpper(f.Arg(0))
+	secret = strings.Replace(secret, " ", "", -1)
+	if secret == "" {
+		usage()
+	}
+	// TODO: Also validate that it is long enough to be hex or base32?
+	otp = f.Arg(1)
 }
 
 func parseFlags(f *flag.FlagSet) {
 	addFlags(f)
 	err = f.Parse(os.Args[2:])
 	if err != nil {
-		usage()
+		os.Exit(1)
 	}
 }
