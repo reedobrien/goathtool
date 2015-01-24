@@ -14,15 +14,16 @@ import (
 var (
 	err    error
 	secret string // The hex or base32 secret
-	// otp string 	// If a value is supplied for varification
+	otp    string // If an OTP is supplied for verification
+
+	// common flags are add in addFlags
+	base32         *bool
+	digits, window *int
+
+	// cFlags is only here for usage()
+	cFlag = flag.NewFlagSet("common", flag.ContinueOnError)
 
 	//// Flags
-	// common flags add in flagParse method
-	cFlag  = flag.NewFlagSet("common", flag.ContinueOnError)
-	base32 = cFlag.Bool("b", false, "Use base32 encoding instead of hex")
-	digits = cFlag.Int("d", 6, "The number of digits in the OTP")
-	window = cFlag.Int("w", 1, "Window of counter values to test when validating OTPs")
-
 	hFlag   = flag.NewFlagSet("hotp", flag.ContinueOnError)
 	counter = hFlag.Int64("c", 0, "HOTP counter Value")
 
@@ -40,6 +41,7 @@ var (
 		fmt.Fprintf(os.Stderr, "  SECRET is the hex or base32 encoded secret as a string\n")
 		fmt.Fprintf(os.Stderr, "  OTP is a one-time password to validate.\n")
 		fmt.Fprintf(os.Stderr, "Common options:\n")
+		addFlags(cFlag)
 		cFlag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "hotp options:\n")
 		hFlag.PrintDefaults()
@@ -55,28 +57,27 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "hotp":
-		err = cFlag.Parse(os.Args[2:])
-		if err != nil {
-			// fmt.Fprintf(os.Stderr, "Failed to parse common flags: %s\n", err)
-			usage()
-		}
-		err = hFlag.Parse(os.Args[2:])
-		if err != nil {
-			// fmt.Fprintf(os.Stderr, "Failed to parse HOTP flags: %s\n", err)
-			usage()
-		}
+		parseFlags(hFlag)
 	case "totp":
-		err = cFlag.Parse(os.Args[2:])
-		if err != nil {
-			// fmt.Fprintf(os.Stderr, "Failed to parse common flags: %s\n", err)
-			usage()
-		}
-		err = tFlag.Parse(os.Args[2:])
-		if err != nil {
-			// fmt.Fprintf(os.Stderr, "Failed to parse TOTP flags: %s\n", err)
-			usage()
-		}
+		parseFlags(tFlag)
+	default:
+		usage()
 	}
 
 	fmt.Println("code appears here")
+}
+
+func addFlags(f *flag.FlagSet) {
+	// common flags add in flagParse method
+	base32 = f.Bool("b", false, "Use base32 encoding instead of hex")
+	digits = f.Int("d", 6, "The number of digits in the OTP")
+	window = f.Int("w", 1, "Window of counter values to test when validating OTPs")
+}
+
+func parseFlags(f *flag.FlagSet) {
+	addFlags(f)
+	err = f.Parse(os.Args[2:])
+	if err != nil {
+		usage()
+	}
 }
