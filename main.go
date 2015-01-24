@@ -53,5 +53,30 @@ func main() {
 	if len(os.Args) < 2 {
 		usage()
 	}
+	switch os.Args[1] {
+	case "hotp":
+		err = cFlag.Parse(os.Args[2:])
+		if err != nil {
+			// fmt.Fprintf(os.Stderr, "Failed to parse common flags: %s\n", err)
+			usage()
+		}
+		err = hFlag.Parse(os.Args[2:])
+		if err != nil {
+			// fmt.Fprintf(os.Stderr, "Failed to parse HOTP flags: %s\n", err)
+			usage()
+		}
+	case "totp":
+		err = cFlag.Parse(os.Args[2:])
+		if err != nil {
+			// fmt.Fprintf(os.Stderr, "Failed to parse common flags: %s\n", err)
+			usage()
+		}
+		err = tFlag.Parse(os.Args[2:])
+		if err != nil {
+			// fmt.Fprintf(os.Stderr, "Failed to parse TOTP flags: %s\n", err)
+			usage()
+		}
+	}
+
 	fmt.Println("code appears here")
 }
