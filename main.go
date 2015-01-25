@@ -22,12 +22,14 @@ import (
 const TIME_FMT = "2006-01-02 15:04:05 MST"
 
 var (
+	epochSec int64 // Representation of TOTP epoch in seconds
 	err      error
 	key      []byte // The decoded secret
+	incr     func() // function to vary incrementing with window on hotp/totp
 	secret   string // The hex or b32 secret
-	otp      string // If an OTP is supplied for verification
+	otp      int64  // If an OTP is supplied for verification
+	otpStr   string // the string representation of OTP
 	nowSec   int64  // Representation of "now" in seconds
-	epochSec int64  // Representation of TOTP epoch in seconds
 
 	// common flags are added in addFlags
 	b32, verbose   *bool
@@ -77,6 +79,9 @@ func main() {
 	case "hotp":
 		parseFlags(hFlag)
 		generate = genHOTP
+		incr = func() {
+			*counter++
+		}
 		if *verbose {
 			fmt.Println("Parsed hotp flags.")
 			fmt.Println("Starting from counter:", *counter)
@@ -104,6 +109,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to parse start time (-S): %s\n", err)
 		}
 		epochSec = epochT.UTC().Unix()
+		incr = func() {
+			nowSec += *step
+		}
 
 	default:
 		usage()
@@ -113,6 +121,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error decoding secret: %s", err)
 		os.Exit(1)
+	}
+
+	if otp > 0 {
+		validate()
+		os.Exit(0)
 	}
 	if *verbose {
 		fmt.Println("Generating", *window+1, "passcodes, (window).")
@@ -132,7 +145,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to generate passcode: %s:\n", err)
 		}
 		fmt.Println(passcode)
-		*counter++
+		incr()
 	}
 }
 
@@ -164,6 +177,16 @@ func genTOTP() (string, error) {
 	*counter = nowSec / *step
 	code, err = genHOTP()
 	return code, err
+}
+
+func validate() bool {
+	fmt.Fprintf(os.Stderr, "Validation is not implemented yet.\n")
+	os.Exit(1)
+	if len(otpStr) != *digits {
+		return false
+	}
+
+	return false
 }
 
 //// Helpers
@@ -226,11 +249,17 @@ func getPositionalArgs(f *flag.FlagSet) {
 		}
 	}
 
-	otp = f.Arg(1)
+	otpStr := f.Arg(1)
+	if otpStr != "" {
+		otp, err = strconv.ParseInt(otpStr, 10, 64)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalide OTP passcode: %s, err: %s", otpStr, err)
+		}
+	}
 
 	if *verbose {
 		fmt.Println("Fixed secret to:", secret)
-		if otp == "" {
+		if otp == 0 {
 			fmt.Println("No OTP was supplied for validation")
 		} else {
 			fmt.Println("Received OTP:", otp)
