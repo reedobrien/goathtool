@@ -19,14 +19,17 @@ import (
 	"time"
 )
 
-var (
-	err    error
-	i      int64
-	key    []byte
-	secret string // The hex or b32 secret
-	otp    string // If an OTP is supplied for verification
+const TIME_FMT = "2006-01-02 15:04:05 MST"
 
-	// common flags are add in addFlags
+var (
+	err      error
+	key      []byte // The decoded secret
+	secret   string // The hex or b32 secret
+	otp      string // If an OTP is supplied for verification
+	nowSec   int64  // Representation of "now" in seconds
+	epochSec int64  // Representation of TOTP epoch in seconds
+
+	// common flags are added in addFlags
 	b32, verbose   *bool
 	digits, window *int
 
@@ -38,9 +41,9 @@ var (
 	counter = hFlag.Int64("c", 0, "HOTP counter Value")
 
 	tFlag = flag.NewFlagSet("totp", flag.ContinueOnError)
-	now   = tFlag.Int64("N", time.Now().UTC().Unix(), "Use this time as current time for TOTP")
+	now   = tFlag.String("N", "", "Use this time as current time for TOTP")
 	step  = tFlag.Int64("s", 30, "The time-step duration")
-	epoch = tFlag.String("S", "1970−01−01 00:00:00 UTC", "When to start counting time-steps for TOTP")
+	epoch = tFlag.String("S", "1970-01-01 00:00:00 UTC", "When to start counting time-steps for TOTP")
 
 	// Need a usage function since we don't build all flag sets unless the
 	// program is called correctly.
@@ -75,12 +78,33 @@ func main() {
 		parseFlags(hFlag)
 		generate = genHOTP
 		if *verbose {
-			fmt.Println("Parsed htop flags.")
+			fmt.Println("Parsed hotp flags.")
 			fmt.Println("Starting from counter:", *counter)
 		}
 	case "totp":
 		parseFlags(tFlag)
-		os.Exit(1)
+		generate = genTOTP
+		if *now == "" {
+			nowSec = time.Now().UTC().Unix()
+			*now = time.Unix(nowSec, 0).Format(TIME_FMT)
+		} else {
+			nowT, err := time.Parse(TIME_FMT, *now)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to parse now (-N): %s", err)
+			}
+			nowSec = nowT.UTC().Unix()
+		}
+		if *verbose {
+			fmt.Println("Parsed totp flags.")
+			fmt.Println("Calculating now as:", *now)
+			fmt.Println("Start counting from:", *epoch)
+		}
+		epochT, err := time.Parse(TIME_FMT, *epoch)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse start time (-S): %s\n", err)
+		}
+		epochSec = epochT.UTC().Unix()
+
 	default:
 		usage()
 	}
@@ -90,10 +114,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error decoding secret: %s", err)
 		os.Exit(1)
 	}
+	if *verbose {
+		fmt.Println("Generating", *window+1, "passcodes, (window).")
+	}
 
-	fmt.Println("Generating", *window, "passcodes, (window).")
-	max := *counter + int64(*window)
-	for i = 0; i <= max; i++ {
+	var max int64
+
+	if *window > 0 {
+		max = *counter + int64(*window)
+	}
+	if *window == 0 {
+		max = 0
+	}
+	for i := int64(0); i <= max; i++ {
 		passcode, err = generate()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to generate passcode: %s:\n", err)
@@ -103,7 +136,7 @@ func main() {
 	}
 }
 
-// OTP functions
+//// OTP functions
 
 func genHOTP() (string, error) {
 	var code uint32
@@ -124,6 +157,13 @@ func genHOTP() (string, error) {
 	passcodeFormat := "%0" + strconv.Itoa(*digits) + "d"
 
 	return fmt.Sprintf(passcodeFormat, code), nil
+}
+
+func genTOTP() (string, error) {
+	var code string
+	*counter = nowSec / *step
+	code, err = genHOTP()
+	return code, err
 }
 
 //// Helpers
@@ -158,13 +198,13 @@ func getKey() ([]byte, error) {
 	return key, nil
 }
 
-// arg parsing functions
+//// arg parsing functions
 
 func addFlags(f *flag.FlagSet) {
 	// common flags add in flagParse method
 	b32 = f.Bool("b", false, "Use b32 encoding instead of hex")
 	digits = f.Int("d", 6, "The number of digits in the OTP")
-	window = f.Int("w", 1, "Window of counter values to test when validating OTPs")
+	window = f.Int("w", 0, "Window of counter values to test when validating OTPs")
 	verbose = f.Bool("v", false, "Explain what  is being done.")
 }
 
@@ -180,9 +220,11 @@ func getPositionalArgs(f *flag.FlagSet) {
 	}
 
 	if *b32 {
-		fmt.Fprintln(os.Stderr, "TODO: Base 32 re-padding should happen here.")
+		// repad base 32 strings if they are short.
+		for len(secret) < 32 {
+			secret = secret + "="
+		}
 	}
-	// TODO: Also validate that it is long enough to be hex or b32?
 
 	otp = f.Arg(1)
 
