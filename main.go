@@ -281,14 +281,12 @@ func getKey() ([]byte, error) {
 	if *b32 {
 		key, err = base32.StdEncoding.DecodeString(secret)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Err decoding secret: %s\n", err)
 			return key, err
 		}
 	}
 	if !*b32 {
 		key, err = hex.DecodeString(secret)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Err decoding secret: %s\n", err)
 			return key, err
 		}
 	}
