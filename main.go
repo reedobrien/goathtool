@@ -27,8 +27,7 @@ var (
 	key      []byte // The decoded secret
 	incr     func() // function to vary incrementing with window on hotp/totp
 	secret   string // The hex or b32 secret
-	otp      int64  // If an OTP is supplied for verification
-	otpStr   string // the string representation of OTP
+	otp      string // If an OTP is supplied for verification
 	nowSec   int64  // Representation of "now" in seconds
 
 	// common flags are added in addFlags
@@ -91,12 +90,27 @@ func main() {
 			if !*b32 {
 				fmt.Println("Hex secret:", secret)
 			}
-			if otp != 0 {
+			if otp != "" {
 				fmt.Println("OTP:", otp)
 			}
 			fmt.Println("Digits:", *digits)
 			fmt.Println("Window size:", *window)
 			fmt.Println("Start Counter:", *counter)
+		}
+		if len(otp) > 0 {
+			valid := validateHOTP()
+			if valid {
+				if *verbose {
+					fmt.Println()
+				}
+				fmt.Println(*counter)
+				os.Exit(0)
+			}
+			if !valid {
+				fmt.Fprintf(os.Stderr, "%s: validating one time password failed (-2)\n", os.Args[0])
+				// oathtool exits with this code it seems.
+				os.Exit(1)
+			}
 		}
 	case "totp":
 		parseFlags(tFlag)
@@ -110,6 +124,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "Failed to parse now (-N): %s", err)
 			}
 			nowSec = nowT.UTC().Unix()
+
 		}
 		if *verbose {
 			fmt.Println("Parsed totp flags.")
@@ -120,7 +135,7 @@ func main() {
 			if !*b32 {
 				fmt.Println("Hex secret:", secret)
 			}
-			if otp != 0 {
+			if otp != "" {
 				fmt.Println("OTP:", otp)
 			}
 			fmt.Println("Digits:", *digits)
@@ -148,11 +163,6 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error decoding secret: %s", err)
 		os.Exit(1)
-	}
-
-	if otp > 0 {
-		validate()
-		os.Exit(0)
 	}
 
 	var max int64
@@ -206,13 +216,22 @@ func genTOTP() (string, error) {
 	return code, err
 }
 
-func validate() bool {
-	fmt.Fprintf(os.Stderr, "Validation is not implemented yet.\n")
-	os.Exit(1)
-	if len(otpStr) != *digits {
+func validateHOTP() bool {
+	if len(otp) != *digits {
 		return false
 	}
-
+	key, err = getKey()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error decoding secret: %s", err)
+		os.Exit(1)
+	}
+	for i := 0; i < *window; i++ {
+		code, _ := genHOTP()
+		if code == otp {
+			return true
+		}
+		*counter++
+	}
 	return false
 }
 
@@ -264,13 +283,7 @@ func getPositionalArgs(f *flag.FlagSet) {
 		}
 	}
 
-	otpStr := f.Arg(1)
-	if otpStr != "" {
-		otp, err = strconv.ParseInt(otpStr, 10, 64)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid OTP passcode: %s, err: %s", otpStr, err)
-		}
-	}
+	otp = f.Arg(1)
 }
 
 func parseFlags(f *flag.FlagSet) {
