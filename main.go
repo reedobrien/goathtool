@@ -84,7 +84,19 @@ func main() {
 		}
 		if *verbose {
 			fmt.Println("Parsed hotp flags.")
-			fmt.Println("Starting from counter:", *counter)
+			if *b32 {
+				fmt.Println("Base 32 secret", secret)
+
+			}
+			if !*b32 {
+				fmt.Println("Hex secret:", secret)
+			}
+			if otp != 0 {
+				fmt.Println("OTP:", otp)
+			}
+			fmt.Println("Digits:", *digits)
+			fmt.Println("Window size:", *window)
+			fmt.Println("Start Counter:", *counter)
 		}
 	case "totp":
 		parseFlags(tFlag)
@@ -101,8 +113,23 @@ func main() {
 		}
 		if *verbose {
 			fmt.Println("Parsed totp flags.")
-			fmt.Println("Calculating now as:", *now)
-			fmt.Println("Start counting from:", *epoch)
+			if *b32 {
+				fmt.Println("Base 32 secret", secret)
+
+			}
+			if !*b32 {
+				fmt.Println("Hex secret:", secret)
+			}
+			if otp != 0 {
+				fmt.Println("OTP:", otp)
+			}
+			fmt.Println("Digits:", *digits)
+			fmt.Println("Window size:", *window)
+			fmt.Println("Step size (seconds):", *step)
+			fmt.Println("Start time:", *epoch)
+			fmt.Println("Current time:", *now)
+			fmt.Println("Counter:", nowSec / *step)
+
 		}
 		epochT, err := time.Parse(TIME_FMT, *epoch)
 		if err != nil {
@@ -127,9 +154,6 @@ func main() {
 		validate()
 		os.Exit(0)
 	}
-	if *verbose {
-		fmt.Println("Generating", *window+1, "passcodes, (window).")
-	}
 
 	var max int64
 
@@ -138,6 +162,9 @@ func main() {
 	}
 	if *window == 0 {
 		max = 0
+	}
+	if *verbose {
+		fmt.Println()
 	}
 	for i := int64(0); i <= max; i++ {
 		passcode, err = generate()
@@ -202,20 +229,12 @@ func getKey() ([]byte, error) {
 			fmt.Fprintf(os.Stderr, "Err decoding secret: %s\n", err)
 			return key, err
 		}
-		if *verbose {
-			fmt.Println("Decoded base32 encoded string", secret)
-			fmt.Printf("Got key: %v\n", key)
-		}
 	}
 	if !*b32 {
 		key, err = hex.DecodeString(secret)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Err decoding secret: %s\n", err)
 			return key, err
-		}
-		if *verbose {
-			fmt.Println("Decoded hex encoded string", secret)
-			fmt.Printf("Got key: %v\n", key)
 		}
 	}
 	return key, nil
@@ -228,7 +247,7 @@ func addFlags(f *flag.FlagSet) {
 	b32 = f.Bool("b", false, "Use b32 encoding instead of hex")
 	digits = f.Int("d", 6, "The number of digits in the OTP")
 	window = f.Int("w", 0, "Window of counter values to test when validating OTPs")
-	verbose = f.Bool("v", false, "Explain what  is being done.")
+	verbose = f.Bool("v", false, "Explain what is being done.")
 }
 
 func getPositionalArgs(f *flag.FlagSet) {
@@ -236,10 +255,6 @@ func getPositionalArgs(f *flag.FlagSet) {
 	secret = strings.Replace(secret, " ", "", -1)
 	if secret == "" {
 		usage()
-	}
-
-	if *verbose {
-		fmt.Println("Got secret:", secret)
 	}
 
 	if *b32 {
@@ -253,19 +268,9 @@ func getPositionalArgs(f *flag.FlagSet) {
 	if otpStr != "" {
 		otp, err = strconv.ParseInt(otpStr, 10, 64)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalide OTP passcode: %s, err: %s", otpStr, err)
+			fmt.Fprintf(os.Stderr, "Invalid OTP passcode: %s, err: %s", otpStr, err)
 		}
 	}
-
-	if *verbose {
-		fmt.Println("Fixed secret to:", secret)
-		if otp == 0 {
-			fmt.Println("No OTP was supplied for validation")
-		} else {
-			fmt.Println("Received OTP:", otp)
-		}
-	}
-
 }
 
 func parseFlags(f *flag.FlagSet) {
