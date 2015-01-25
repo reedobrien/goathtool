@@ -18,6 +18,147 @@ goathtool
 Generate OATH one-time passwords (OTP).
 
 
+## Examples
+
+The following examples are borrowed/stolen from the oathtool man page
+
+To generate the first event-based (HOTP) one-time password for an all-zero key:
+
+          $ oathtool 00
+          328482
+          $
+
+       Sometime you want to generate more than a single OTP.  To generate 10 additional event-based one-time pass‐
+       words, with the secret key used in the examples of RFC 4226, use the -w (--window) parameter:
+
+          $ oathtool -w 10 3132333435363738393031323334353637383930
+          755224
+          287082
+          359152
+          969429
+          338314
+          254676
+          287922
+          162583
+          399871
+          520489
+          403154
+          $
+
+       In the last output, the counter for the first OTP was 0, the second OTP had a counter of 1, and so on up to
+       10.
+
+       In order to use keys encoded in Base32 instead of hex, you may provide the -b (--base32) parameter:
+
+          $ oathtool --base32 -w 3 GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+          755224
+          287082
+          359152
+          969429
+          $
+
+       The tool ignore whitespace in base32 data and re-add padding if necessary, thus you may supply keys format‐
+       ted like the one below.
+
+          $ oathtool --base32 --totp "gr6d 5br7 25s6 vnck v4vl hlao re"
+          977872
+          $
+
+       To generate a particular OTP, use the -c (--counter) parameter to give the exact position directly:
+
+          $ oathtool -c 5 3132333435363738393031323334353637383930
+          254676
+
+To validate a HOTP one-time password supply the OTP last on the command line:
+
+          $ oathtool -w 10 3132333435363738393031323334353637383930 969429
+          3
+          $
+
+       The output indicates the counter that was used.  It works by starting with counter 0 and increment until it
+       founds a match (or not), within the supplied window of 10 OTPs.
+
+       The  tool  supports  time-variant one-time passwords, in so called TOTP mode.  Usage is similar, but --totp
+       needs to be provided:
+
+          $ oathtool --totp 00
+          943388
+          $
+
+       Don't be alarmed if you do not get the same output, this is because the output is time variant.  To  gener‐
+       ate a TOTP for a particular fixed time use the -N (--now) parameter:
+
+          $ oathtool --totp --now "2008-04-23 17:42:17 UTC" 00
+          974945
+          $
+
+       The  format is a mostly free format human readable date string such as "Sun, 29 Feb 2004 16:21:42 -0800" or
+       "2004-02-29 16:21:42" or even "next Thursday".  It is the same used as the --date parameter of the  date(1)
+       tool.
+
+       You may generate several TOTPs by specifying the --window parameter, similar to how it works for HOTP.  The
+       OTPs generated here will be for the initial time (normally current time) and then each following time  step
+       (e.g., 30 second window).
+
+          $ oathtool --totp 00 -w5
+          815120
+          003818
+          814756
+          184042
+          582326
+          733842
+          $
+
+       You  can  validate  a TOTP one-time password by supplying the secret and a window parameter (number of time
+       steps before or after current time):
+
+          $ oathtool --totp -w 5 00 `oathtool --totp 00`
+          0
+          $
+
+       Similar when generating TOTPs, you can use a -N (--now) parameter to specify the time to use instead of the
+       current time:
+
+         $  oathtool  --totp  --now="2005-03-18 01:58:29 UTC" -w 10000000 3132333435363738393031323334353637383930
+       89005924
+         4115227
+         $
+The previous test uses values from the TOTP specification  and  will  stress  test  the  tool  because  the
+       expected window is around 4 million time-steps.
+
+       There are two system parameters for TOTP: the time-step size and the time start.
+
+       By  default the time-step size is 30 seconds, which means you get a new OTP every 30 seconds.  You may mod‐
+       ify this with the -s (--time-step-size) parameter:
+
+          $ oathtool --totp --time-step-size=45s 00
+          109841
+          $
+
+       The values are valid ISO-8601 durations, see: http://en.wikipedia.org/wiki/ISO_8601#Durations
+
+       The time start is normally 1970-01-01 00:00:00 UTC but you may change it using the -S (--start-time):
+
+          $ oathtool --totp --start-time "1980-01-01 00:00:00 UTC" 00
+          273884
+          $
+
+       To get more information about what the tool is using use the -v (--verbose) parameter.  Finally, to  gener‐
+       ate the last TOTP (for SHA-1) in the test vector table of draft-mraihi-totp-timebased-07 you can invoke the
+       tool like this:
+
+          $ oathtool --totp -v -N "2033-05-18 03:33:20 UTC" -d8 3132333435363738393031323334353637383930
+          Hex secret: 3132333435363738393031323334353637383930
+          Base32 secret: GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+          Digits: 8
+          Window size: 0
+          Step size (seconds): 30
+          Start time: 1970-01-01 00:00:00 UTC (0)
+          Time now: 2033-05-18 03:33:20 UTC (2000000000)
+          Counter: 0x3F940AA (66666666)
+
+          69279037
+		  $
 
 
 ## To Do
