@@ -51,7 +51,7 @@ var (
 	usage = func() {
 		fmt.Fprintf(os.Stderr, "usage of %s:\n", os.Args[0])
 		fmt.Fprintf(os.Stderr,
-			"\t%s [hotp|totp] <options> SECRET <OTP>\n", os.Args[0])
+			"  %s [hotp|totp] <options> SECRET <OTP>\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  SECRET is the hex or b32 encoded secret as a string\n")
 		fmt.Fprintf(os.Stderr, "  OTP is a one-time password to validate.\n")
 		fmt.Fprintf(os.Stderr, "Common options:\n")
