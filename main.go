@@ -154,6 +154,21 @@ func main() {
 		incr = func() {
 			nowSec += *step
 		}
+		if len(otp) > 0 {
+			valid := validateTOTP()
+			if valid {
+				if *verbose {
+					fmt.Println()
+				}
+				fmt.Println(*counter)
+				os.Exit(0)
+			}
+			if !valid {
+				fmt.Fprintf(os.Stderr, "%s: validating one time password failed (-2)\n", os.Args[0])
+				// oathtool exits with this code it seems.
+				os.Exit(1)
+			}
+		}
 
 	default:
 		usage()
@@ -231,6 +246,27 @@ func validateHOTP() bool {
 			return true
 		}
 		*counter++
+	}
+	return false
+}
+
+func validateTOTP() bool {
+	if len(otp) != *digits {
+		return false
+	}
+	key, err = getKey()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error decoding secret: %s", err)
+		os.Exit(1)
+	}
+	min := (nowSec / *step) - int64((*window / 2))
+	max := (nowSec / *step) + int64((*window / 2))
+	for t := min; t <= max; t++ {
+		code, _ := genTOTP()
+		if code == otp {
+			return true
+		}
+		nowSec += *step
 	}
 	return false
 }
