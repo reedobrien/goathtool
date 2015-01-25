@@ -21,6 +21,8 @@ import (
 
 var (
 	err    error
+	i      int64
+	key    []byte
 	secret string // The hex or b32 secret
 	otp    string // If an OTP is supplied for verification
 
@@ -60,16 +62,21 @@ var (
 )
 
 func main() {
-	var passcode string
+	var (
+		passcode string
+		generate func() (string, error)
+	)
+
 	if len(os.Args) < 2 {
 		usage()
 	}
 	switch os.Args[1] {
 	case "hotp":
 		parseFlags(hFlag)
-		passcode, err = genHOTP()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to generate passcode: %s:\n", err)
+		generate = genHOTP
+		if *verbose {
+			fmt.Println("Parsed htop flags.")
+			fmt.Println("Starting from counter:", *counter)
 		}
 	case "totp":
 		parseFlags(tFlag)
@@ -78,38 +85,48 @@ func main() {
 		usage()
 	}
 
-	fmt.Println(passcode)
+	key, err = getKey()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error decoding secret: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Generating", *window, "passcodes, (window).")
+	max := *counter + int64(*window)
+	for i = 0; i <= max; i++ {
+		passcode, err = generate()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to generate passcode: %s:\n", err)
+		}
+		fmt.Println(passcode)
+		*counter++
+	}
 }
 
 // OTP functions
 
 func genHOTP() (string, error) {
-	var (
-		code uint32
-		key  []byte
-	)
-	key, err := getKey()
-	if err != nil {
-		return "", nil
-	}
+	var code uint32
+
 	hash := hmac.New(sha1.New, key)
 
 	err = binary.Write(hash, binary.BigEndian, *counter)
 	if err != nil {
 		return "", err
 	}
-	h := hash.Sum(nil)
 
+	h := hash.Sum(nil)
 	offset := h[19] & 0x0f
 
 	trunc := binary.BigEndian.Uint32(h[offset : offset+4])
-
 	trunc &= 0x7fffffff
 	code = trunc % uint32(math.Pow(10, float64(*digits)))
-
 	passcodeFormat := "%0" + strconv.Itoa(*digits) + "d"
+
 	return fmt.Sprintf(passcodeFormat, code), nil
 }
+
+//// Helpers
 
 func getKey() ([]byte, error) {
 	var (
@@ -122,6 +139,10 @@ func getKey() ([]byte, error) {
 			fmt.Fprintf(os.Stderr, "Err decoding secret: %s\n", err)
 			return key, err
 		}
+		if *verbose {
+			fmt.Println("Decoded base32 encoded string", secret)
+			fmt.Printf("Got key: %v\n", key)
+		}
 	}
 	if !*b32 {
 		key, err = hex.DecodeString(secret)
@@ -129,11 +150,15 @@ func getKey() ([]byte, error) {
 			fmt.Fprintf(os.Stderr, "Err decoding secret: %s\n", err)
 			return key, err
 		}
+		if *verbose {
+			fmt.Println("Decoded hex encoded string", secret)
+			fmt.Printf("Got key: %v\n", key)
+		}
 	}
 	return key, nil
 }
 
-// Flag functions
+// arg parsing functions
 
 func addFlags(f *flag.FlagSet) {
 	// common flags add in flagParse method
@@ -149,8 +174,27 @@ func getPositionalArgs(f *flag.FlagSet) {
 	if secret == "" {
 		usage()
 	}
+
+	if *verbose {
+		fmt.Println("Got secret:", secret)
+	}
+
+	if *b32 {
+		fmt.Fprintln(os.Stderr, "TODO: Base 32 re-padding should happen here.")
+	}
 	// TODO: Also validate that it is long enough to be hex or b32?
+
 	otp = f.Arg(1)
+
+	if *verbose {
+		fmt.Println("Fixed secret to:", secret)
+		if otp == "" {
+			fmt.Println("No OTP was supplied for validation")
+		} else {
+			fmt.Println("Received OTP:", otp)
+		}
+	}
+
 }
 
 func parseFlags(f *flag.FlagSet) {
@@ -159,4 +203,5 @@ func parseFlags(f *flag.FlagSet) {
 	if err != nil {
 		os.Exit(1)
 	}
+	getPositionalArgs(f)
 }
