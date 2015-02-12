@@ -277,7 +277,6 @@ func getKey() ([]byte, error) {
 	var (
 		key []byte
 	)
-
 	if *b32 {
 		key, err = base32.StdEncoding.DecodeString(secret)
 		if err != nil {
@@ -312,7 +311,7 @@ func getPositionalArgs(f *flag.FlagSet) {
 
 	if *b32 {
 		// repad base 32 strings if they are short.
-		for len(secret) < 32 {
+		for len(secret) < 32 && len(secret) > 16 {
 			secret = secret + "="
 		}
 	}
